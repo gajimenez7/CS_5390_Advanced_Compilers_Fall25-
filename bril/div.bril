@@ -1,0 +1,14 @@
+@main {
+	v0: int = const 9 ;
+	v1: int = const -20;
+	res: int = div v0 v1;
+	b: bool = const false;
+	print res;
+	br b .there .here;
+
+.here:
+    v2: int = const 5;
+
+.there:
+    print v2;
+}

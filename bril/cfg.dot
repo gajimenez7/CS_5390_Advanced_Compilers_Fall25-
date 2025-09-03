@@ -1,0 +1,12 @@
+digraph CFG {
+    "main" [label="main\nconst, const, div, const, print, br"];
+    "here" [label="here\nconst"];
+    "there" [label="there\nprint"];
+    "main" -> "there";
+    "main" -> "here";
+    "here" -> "t";
+    "here" -> "h";
+    "here" -> "e";
+    "here" -> "r";
+    "here" -> "e";
+}

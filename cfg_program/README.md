@@ -21,3 +21,7 @@ digraph.
 
 Takes in a `.bril` file as a parameter and outputs a formatted
 JSON string of the `bril` program
+
+## Test Directory
+
+Contains all of the `bril/tests/interp/core/` tests

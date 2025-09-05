@@ -42,31 +42,34 @@ def get_cfg(block_map) -> dict:
                 case _:
                     if index + 1 < len(block_names):
                         next_label = block_names[index + 1]
-                        the_cfg[current_label] = next_label
+                        the_cfg[current_label] = [next_label]
                     else:
                         the_cfg[current_label] = []
         else:
             if index + 1 < len(block_names):
                 next_label = block_names[index + 1]
-                the_cfg[current_label] = next_label
+                the_cfg[current_label] = [next_label]
             else:
                 the_cfg[current_label] = []
 
     return the_cfg
 
 
-def gen_dot(cfg_map, block_map) -> str:
-    dot_script = "digraph CFG {\n"
+def gen_dot(func_name, cfg_map, block_map) -> str:
+    dot_script = f'digraph "{func_name}"{{\n'
+    # squares maybe
     # dot_script += "     node [shape=box];\n"
 
-    for label, block in block_map.items():
-        instr_labels = [f"{i['op']}" for i in block if "op" in i]
-        node_label = f'"{label}\\n{", ".join(instr_labels)}"'
-        dot_script += f'    "{label}" [label={node_label}];\n'
+    # define nodes for basic blocks
+    for name in block_map:
+        dot_script += f'     "{name}";\n'
 
-    for source_label, next_inst in cfg_map.items():
-        for target_label in next_inst:
-            dot_script += f'    "{source_label}" -> "{target_label}";\n'
+    # define edges based on cfg
+    for name, successors in cfg_map.items():
+        # print(f"\nName in cfg_map:\n{name}\n\nSuccessors in cfg_map:\n{successors}\n")
+        for successor in successors:
+            # print(f"\nSuccessor in successors:\n{successor}\n")
+            dot_script += f'     "{name}" -> "{successor}";\n'
 
     dot_script += "}\n"
     return dot_script
@@ -95,24 +98,24 @@ def mycfg() -> None:
     for block in basic_blocks_gen:
         first_inst = block[0]
         if "label" in first_inst:
-            blocks_map[first_inst["label"]] = block
+            blocks_map[first_inst["label"]] = [block]
 
-    print("Block mapping:\n")
-    for label, block in blocks_map.items():
-        print(f"--- Block for label '{label}' ---")
-        for instr in block:
-            print(f"{instr}\n")
+    # print("Block mapping:\n")
+    # for label, block in blocks_map.items():
+    # print(f"--- Block for label '{label}' ---")
+    # for instr in block:
+    # print(f"{instr}\n")
 
     # create cfg
     new_cfg = get_cfg(blocks_map)
-    print("Control Flow Graph (CFG):\n")
-    for label, next_inst in new_cfg.items():
-        print(f"Block '{label}' -> Next Instruction: {next_inst}")
+    # print("Control Flow Graph (CFG):\n")
+    # for label, next_inst in new_cfg.items():
+    # print(f"Block '{label}' -> Next Instruction: {next_inst}")
 
-    dot_string = gen_dot(new_cfg, blocks_map)
+    dot_string = gen_dot(func_name, new_cfg, blocks_map)
+    print(dot_string)
 
-    with open("cfg.dot", "w") as f:
-        f.write(dot_string)
+    # print(f"\nThe digraph:\n{dot_string}")
     return
 
 

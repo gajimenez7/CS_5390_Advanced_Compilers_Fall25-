@@ -1,2 +1,2 @@
 #!/usr/bin/bash
-bril2json < $@ | python -m json.tool --indent 2
+bril2json < "$1" | python -m json.tool --indent 2

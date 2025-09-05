@@ -1,0 +1,15 @@
+#!/usr/bin/bash
+
+file_param="$1"
+file=${file_param##*/}
+base=${file%%.*}
+
+out_ext=".pdf"
+out_file="${base}${out_ext}"
+out_dir="./pdfs/"
+
+if [ ! -d "$out_dir" ]; then
+	mkdir "$out_dir"
+fi
+
+./run "$file_param" | dot -Tpdf -o "${out_dir}${out_file}"

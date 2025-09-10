@@ -1,0 +1,35 @@
+#!/usr/bin/bash
+
+# check for at least input
+if [ -z "$1" ]; then
+    echo "Usage: $0 [-i] <input_file>"
+    exit 1
+fi
+
+in_flag="$1"
+file_param="$2"
+output_format="-Tpdf"
+
+# if 2 input
+if [ "${in_flag}" == "-i" ]; then
+	output_format="-Tpng"
+	out_ext=".png"
+	file_param="$2"
+else
+	file_param="$1"
+	out_ext=".pdf"
+fi
+
+file=${file_param##*/}
+base=${file%%.*}
+
+out_file="${base}${out_ext}"
+out_dir="./pdfs/"
+
+if [ ! -d "$out_dir" ]; then
+	mkdir "$out_dir"
+fi
+
+	
+
+./run_mycfg "$file_param" | dot "${output_format}" -o "${out_dir}${out_file}"

@@ -1,0 +1,40 @@
+#!/usr/bin/bash
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 [-d | --debug] <input_file>"
+		echo "       $0 [-h | --help]"
+    exit 1
+fi
+
+in_flag=""
+file_param=""
+
+# if 2 input
+if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+	echo "Usage: $0 [-d | --debug] <input_file>"
+	echo "       $0 [-h | --help]"
+	echo " "
+	echo "This script processes a Brill file to generate a PDF or PNG of its Control Flow Graph (CFG)."
+	echo " "
+	echo "Options:"
+	echo "  -d, --debug    Enables debug mode, printing verbose output to stdout."
+	echo "  -h, --help     Displays this help message and exits."
+	echo " "
+	echo "Example:"
+	echo "  $0 my_bril_program.bril"
+	echo "  $0 -d my_bril_program.bril"
+	exit 0
+elif [ "$1" == "-d" ] || [ "$1" == "--debug" ]; then
+	in_flag="$1"
+	file_param="$2"
+
+	if [ -z "$file_param" ]; then
+		echo "Error: Debug flag requires an input file"
+    echo "Usage: $0 [-d | --debug] <input_file>"
+		exit 1
+	fi
+else
+	file_param="$1"
+fi
+
+./print "$file_param" | python mycfg.py "${in_flag}"

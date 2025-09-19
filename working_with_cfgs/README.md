@@ -13,15 +13,17 @@ There are 3 provided scripts, which all use `bril2json`:
 Takes in a `.bril` file as a parameter and calls
 the `./run_mycfg` script, piping the digraph output from the `mcfg.py`
 script and creating the graph using graphviz and generated within the
-`./pdf` directory.
+`./pdf` directory. A `-i` flag can be passed to output as a png instead
+of a pdf.
 
 ## Run Script
 
 Takes in a `.bril` file as a parameter and outputs the
 digraph to stdout.
 
-Takes in `-h`, `--help` and `-d`, `--debug` flags for help
-using the scripts and verbose output for debugging.
+Takes in `-h`, `--help` or `-d`, `--debug` or `-r`, `--reduceable` flags for help
+using the scripts, verbose output for debugging, or determining of a given bril file
+is reduceable, respectively.
 
 ## Print Script
 

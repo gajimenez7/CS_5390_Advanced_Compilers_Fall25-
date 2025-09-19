@@ -1,3 +1,0 @@
-#!/usr/bin/bash
-
-./print $@ | python mycfg.py

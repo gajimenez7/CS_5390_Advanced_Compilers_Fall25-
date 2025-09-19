@@ -1,3 +1,4 @@
 *.pdf
 bril2json
 pdfs/
+pyrightconfig.json

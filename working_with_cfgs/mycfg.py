@@ -1,9 +1,13 @@
 import json
 import sys
 import argparse
+from collections import deque
+from collections.abc import Iterator
+
+# cfg generation program
 
 
-def form_blocks(instructions, debug=False) -> list:
+def form_blocks(instructions, debug=False) -> Iterator[list[dict]]:
     if debug:
         print(f"I am passing these instructions\n{instructions}\n")
     if not instructions:
@@ -103,7 +107,9 @@ def get_cfg(block_map, debug=False) -> dict:
 
         # if "op" in last_instruction:
         if debug:
-            print("Operator in the last instruction...\n")
+            print(
+                f"Operator in the last instruction...\nLast Instruction:\n{last_instruction}"
+            )
         match last_instruction["op"]:
             # branch instruction
             case "br":
@@ -163,7 +169,181 @@ def gen_dot(cfg, debug=False) -> str:
     return dot_script
 
 
-def mycfg(debug_mode: bool, file_path: str = None) -> None:
+# working with cfgs
+
+
+def get_path_length(cfg, entry, debug=False) -> tuple[dict, dict]:
+    """
+    desc: computes shortest path length (in edges)
+          from entry node to each node in CFG BFS
+
+    param: cfg(dict)  = mapping{node: [successors]}
+    param: entry(str) = starting node
+
+    returns: dict {node:distance from entry}
+    """
+
+    dist_map = {}
+    dist_map = {i: -1 for i in cfg}
+    preds = {}
+    preds = {i: None for i in cfg}
+    dist_map[entry] = 0
+    node_queue = deque()
+    visited = set()
+
+    node_queue.append(entry)
+    visited.add(entry)
+
+    if debug:
+        print(f"Entry param:\n{entry}\n\nItems:\n{cfg.items()}\n")
+        print(f"Node queue:\n{node_queue}\n\nVisited set:\n{visited}\n")
+
+    while len(node_queue) != 0:
+        current_node = node_queue.popleft()
+        if debug:
+            print(f"Node queue:\n{node_queue}\n\nVisited set:\n{visited}\n")
+
+        for successor in cfg[current_node]:
+            if dist_map[successor] == -1:
+                dist_map[successor] = dist_map[current_node] + 1
+                preds[successor] = current_node
+                node_queue.append(successor)
+            if debug:
+                print(f"The successor:\n{successor}\n")
+            if successor not in visited:
+                visited.add(successor)
+                node_queue.append(successor)
+        if debug:
+            print(f"The distance map so far:\n{dist_map}\n")
+
+    return dist_map, preds
+
+
+def reverse_postorder(cfg, entry, debug=False) -> list[str]:
+    """
+    desc: compute RPO for a CFG
+
+    param: cfg(dict)  = mapping{node: [successors]}
+    param: entry(str) = starting node
+
+    returns: list[nodes in reverse post order]
+    """
+
+    visited = set()
+    po_list = []
+
+    def depth_first_search_helper(a_node):
+        visited.add(a_node)
+        if a_node in cfg:
+            for successor in cfg[a_node]:
+                if successor not in visited:
+                    depth_first_search_helper(successor)
+        po_list.append(a_node)
+        if debug:
+            print(f"The node:\n{a_node}\n\nThe po list:\n{po_list}\n")
+
+    # post order traveresal first
+    depth_first_search_helper(entry)
+    rpo_list = po_list[::-1]
+    if debug:
+        print(f"The rpo list:\n{rpo_list}\n")
+
+    return rpo_list
+
+
+def find_back_edges(cfg, entry, debug=False) -> list[str]:
+    """
+    desc: find back edges of a CFG using DFS
+
+    param: cfg(dict)  = mapping{node: [successors]}
+    param: entry(str) = starting node
+
+    returns: list of edges(u,v) where u -> v is a back edge
+    """
+
+    back_edges = []
+    visited = set()
+    visiting = set()
+    unvisited = set(cfg.keys())
+
+    def depth_first_search_helper(a_node):
+        unvisited.discard(a_node)
+        visiting.add(a_node)
+        if a_node in cfg:
+            for successor in cfg[a_node]:
+                if successor in visiting:
+                    if debug:
+                        print(f"Found back edge:\n{successor}\n")
+                    back_edges.append([a_node, successor])
+                elif successor in unvisited:
+                    depth_first_search_helper(successor)
+            visiting.discard(a_node)
+            visited.add(a_node)
+        if debug:
+            print(f"The node:\n{a_node}\n\nThe back edges list:\n{back_edges}\n")
+
+    depth_first_search_helper(entry)
+
+    return back_edges
+
+
+def is_reducable(cfg, entry, debug=False) -> bool:
+    """
+    desc: determine whether a cfg is reducable
+
+    param: cfg(dict)  = mapping{node: [successors]}
+    param: entry(str) = starting node
+
+    returns: True/False if cfg is reducable or not
+
+    requires: find_back_edges and reverse_postorder functions
+    """
+    back_edges = find_back_edges(cfg, entry)
+
+    dominators = find_dominators(cfg, entry)
+
+    if debug:
+        print(f"Back edges:\n{back_edges}\n\nDominators:\n{dominators}\n")
+
+    for u, v in back_edges:
+        if v not in dominators[u]:
+            return False
+
+    return True
+
+
+def find_dominators(cfg, entry_node, debug=False) -> dict:
+    dominators = {}
+    dominators[entry_node] = {entry_node}
+
+    for a_node in cfg:
+        if a_node != entry_node:
+            dominators[a_node] = set(cfg.keys())
+
+    while True:
+        changed = False
+
+        for a_node in reverse_postorder(cfg, entry_node):
+            if a_node == entry_node:
+                pass
+            new_doms = set(cfg.keys())
+
+            for predecessor in get_path_length(cfg, entry_node)[-1]:
+                new_doms = new_doms.intersection(dominators[predecessor])
+
+            new_doms.add(a_node)
+
+            if new_doms != dominators[a_node]:
+                dominators[a_node] = new_doms
+                changed = True
+
+        if not changed:
+            break
+
+    return dominators
+
+
+def mycfg(debug_mode: bool, file_path: str = "") -> None:
     # load JSON from stdin
     prog = json.load(sys.stdin)
     funcs = prog["functions"]
@@ -178,6 +358,26 @@ def mycfg(debug_mode: bool, file_path: str = None) -> None:
 
     # create cfg
     new_cfg = get_cfg(name_to_block, debug_mode)
+
+    if debug_mode:
+        print(f"The cfg:\n{new_cfg}\n\n")
+
+    entry_node = list(new_cfg.keys())[0]
+    # get shortest path length
+    # get_path_length(new_cfg, new_cfg.keys()[0], debug_mode)
+    get_path_length(new_cfg, entry_node, debug_mode)
+
+    # reverse post order
+    reverse_postorder(new_cfg, entry_node, debug_mode)
+
+    # find back edges
+    find_back_edges(new_cfg, entry_node, debug_mode)
+
+    # is reducable
+    reduceable = is_reducable(new_cfg, entry_node, True)
+
+    if True:
+        print(f"Is reducable: {reduceable}\n")
 
     dot_string = gen_dot(new_cfg, debug_mode)
     print(dot_string)
@@ -194,6 +394,12 @@ if __name__ == "__main__":
         "--debug",
         action="store_true",
         help="Enable debug mode with verbose output.",
+    )
+    parser.add_argument(
+        "-r",
+        "--reduceable",
+        action="store_true",
+        help="Check if a bril program is reduceable.",
     )
     parser.add_argument(
         "file",

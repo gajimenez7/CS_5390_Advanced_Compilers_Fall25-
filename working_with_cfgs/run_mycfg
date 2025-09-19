@@ -2,6 +2,7 @@
 
 if [ -z "$1" ]; then
     echo "Usage: $0 [-d | --debug] <input_file>"
+		echo "       $0 [-r | --reduceable]"
 		echo "       $0 [-h | --help]"
     exit 1
 fi
@@ -9,7 +10,7 @@ fi
 in_flag=""
 file_param=""
 
-# if 2 input
+# if 2 or more input
 if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
 	echo "Usage: $0 [-d | --debug] <input_file>"
 	echo "       $0 [-h | --help]"
@@ -29,8 +30,17 @@ elif [ "$1" == "-d" ] || [ "$1" == "--debug" ]; then
 	file_param="$2"
 
 	if [ -z "$file_param" ]; then
-		echo "Error: Debug flag requires an input file"
-    echo "Usage: $0 [-d | --debug] <input_file>"
+		echo "error: debug flag requires an input file"
+    echo "usage: $0 [-d | --debug] <input_file>"
+		exit 1
+	fi
+elif [ "$1" == "-r" ] || [ "$1" == "--reduceable" ]; then
+	in_flag="$1"
+	file_param="$2"
+
+	if [ -z "$file_param" ]; then
+		echo "error: reduceable flag requires an input file"
+    echo "usage: $0 [-r | --reduceable] <input_file>"
 		exit 1
 	fi
 else

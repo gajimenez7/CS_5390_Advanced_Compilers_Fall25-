@@ -3,6 +3,7 @@ import sys
 import argparse
 from collections import deque
 from collections.abc import Iterator
+from webbrowser import get
 
 # cfg generation program
 
@@ -15,11 +16,11 @@ def form_blocks(instructions, debug=False) -> Iterator[list[dict]]:
             print("Instructions is empty")
         return
 
-    current_block = []
     # indicates end of a block when last instruction had a terminator
     terminators = {"br", "jmp", "ret"}
     first_inst = instructions[0]
-    current_block.append(first_inst)
+    current_block = [first_inst]
+
     for i in range(1, len(instructions)):
         last_inst = instructions[i - 1]
         curr_inst = instructions[i]
@@ -29,68 +30,58 @@ def form_blocks(instructions, debug=False) -> Iterator[list[dict]]:
 
         # label starts a new block
         # currently a leader(new block)
-        if "label" in curr_inst.keys():
-            if debug:
-                print(f"{curr_inst.keys()}")
-                print(
-                    "\nLabel found in current instruction...RETURNING CURRENT_BLOCK\n"
-                )
-            yield current_block
-            current_block = [curr_inst]
+        leader = "label" in curr_inst
+
         # last instruction had a terminator(new block)
-        elif "op" in last_inst.keys() and last_inst["op"] in terminators:
+        if "op" in last_inst and last_inst["op"] in terminators:
             if debug:
                 print(f"{last_inst.keys()}")
                 print(
                     "\nTerminator found in last instruction...RETURNING CURRENT_BLOCK\n"
                 )
+            leader = True
+        if leader:
             yield current_block
             current_block = [curr_inst]
         else:
             current_block.append(curr_inst)
     if debug:
         print("\nFINISHED CREATING BASIC BLOCKS, NO MORE INSTRUCTIONS\n")
-    yield current_block
+    if current_block:
+        yield current_block
 
 
 def map_blocks(basic_blocks, debug=False) -> dict:
     unamed_block_label = "b"
-    ntb_map = {}
+    unamed_block_counter = 0
+    name_to_block_map = {}
 
-    for i, block in enumerate(basic_blocks):
+    for block in basic_blocks:
         # start of basic block
+        block_name = None
+        first_inst = block[0]
         if debug:
-            print(f"\nBlock # {i + 1}:\n")
-        for inst in block:
-            # instruction within basic block
-            if debug:
-                print(f"{inst}")
+            print(f"\nBlock # {unamed_block_counter}:\n")
+        # instruction within basic block
+        if debug:
+            print(f"{block}")
 
-            # check for label first
-            if "label" in inst.keys():
-                if debug:
-                    print(f"\nBlock contains a label: {inst['label']}\n")
-                ntb_map[inst["label"]] = block
-                break
-            # if there is a branch operation instruction
-            elif "op" in inst.keys() and inst["op"] == "br":
-                if debug:
-                    print(f"\nThere is a branch instruction: {inst['args'][0]}")
-                ntb_map[inst["args"][0]] = block
-                break
-            else:
-                label_name = unamed_block_label + str(i)
-                if debug:
-                    print(f"\nThis is an unamed block: {label_name}")
-                ntb_map[label_name] = block
-                break
+        # check for label first
+        if "label" in first_inst:
+            block_name = first_inst["label"]
+        # if there is a branch operation instruction
+        else:
+            block_name = f"b{unamed_block_counter}"
+            unamed_block_counter += 1
+        name_to_block_map[block_name] = block
 
         # new line end of block formatting
         if debug:
             print("\n")
+
     if debug:
-        print(f"The finished mapping:\n{ntb_map}")
-    return ntb_map
+        print(f"The finished mapping:\n{name_to_block_map}")
+    return name_to_block_map
 
 
 def get_cfg(block_map, debug=False) -> dict:
@@ -105,43 +96,29 @@ def get_cfg(block_map, debug=False) -> dict:
         if debug:
             print(f"The block for '{current_label}':\n{block}\n")
 
-        # if "op" in last_instruction:
+        the_cfg[current_label] = []
+
         if debug:
             print(
                 f"Operator in the last instruction...\nLast Instruction:\n{last_instruction}"
             )
-        match last_instruction["op"]:
-            # branch instruction
-            case "br":
+        if "op" in last_instruction:
+            op = last_instruction["op"]
+            if op == "br" and "labels" in last_instruction:
                 if debug:
                     print("Branch case...")
                     print(
                         f"Adding '{current_label}' key to '{last_instruction.get('labels', [])}' value\n"
                     )
-                the_cfg[current_label] = last_instruction.get("labels", [])
-            # return instruction
-            case "ret":
+                the_cfg[current_label].extend(last_instruction["labels"])
+            elif op == "jmp" and "labels" in last_instruction:
                 if debug:
                     print("Return case...\n")
-                the_cfg[current_label] = []
-            # no terminating operations, next block succeeds current label
-            case _:
-                # is there a next basic block
-                if index + 1 < len(block_names):
-                    if debug:
-                        print("No terminators...")
-                        print(
-                            f"Adding '{current_label}' key to '{block_names[index + 1]}' value\n"
-                        )
-                    next_label = block_names[index + 1]
-                    the_cfg[current_label] = [next_label]
-                # no more basic blocks, we are the last basic block
-                else:
-                    if debug:
-                        print(
-                            f"Nothing comes next! Adding empty list to '{current_label}'\n"
-                        )
-                    the_cfg[current_label] = []
+                the_cfg[current_label].extend(last_instruction["labels"])
+            elif op != "ret" and index + 1 < len(block_names):
+                the_cfg[current_label].append(block_names[index + 1])
+        elif index + 1 < len(block_names):
+            the_cfg[current_label].append(block_names[index + 1])
 
     if debug:
         print(f"The final cfg:\n{the_cfg}\n")
@@ -183,36 +160,27 @@ def get_path_length(cfg, entry, debug=False) -> tuple[dict, dict]:
     returns: dict {node:distance from entry}
     """
 
-    dist_map = {}
     dist_map = {i: -1 for i in cfg}
-    preds = {}
     preds = {i: None for i in cfg}
     dist_map[entry] = 0
-    node_queue = deque()
-    visited = set()
-
-    node_queue.append(entry)
-    visited.add(entry)
+    node_queue = deque([entry])
 
     if debug:
         print(f"Entry param:\n{entry}\n\nItems:\n{cfg.items()}\n")
-        print(f"Node queue:\n{node_queue}\n\nVisited set:\n{visited}\n")
+        print(f"Node queue:\n{node_queue}\n")
 
-    while len(node_queue) != 0:
+    while node_queue:
         current_node = node_queue.popleft()
         if debug:
-            print(f"Node queue:\n{node_queue}\n\nVisited set:\n{visited}\n")
+            print(f"Node queue:\n{node_queue}\n")
 
-        for successor in cfg[current_node]:
-            if dist_map[successor] == -1:
+        for successor in cfg.get(current_node, []):
+            if dist_map.get(successor, -1) == -1:
                 dist_map[successor] = dist_map[current_node] + 1
                 preds[successor] = current_node
                 node_queue.append(successor)
             if debug:
                 print(f"The successor:\n{successor}\n")
-            if successor not in visited:
-                visited.add(successor)
-                node_queue.append(successor)
         if debug:
             print(f"The distance map so far:\n{dist_map}\n")
 
@@ -233,12 +201,11 @@ def reverse_postorder(cfg, entry, debug=False) -> list[str]:
     po_list = []
 
     def depth_first_search_helper(a_node):
-        visited.add(a_node)
-        if a_node in cfg:
-            for successor in cfg[a_node]:
-                if successor not in visited:
-                    depth_first_search_helper(successor)
-        po_list.append(a_node)
+        if a_node not in visited:
+            visited.add(a_node)
+            for successor in cfg.get(a_node, []):
+                depth_first_search_helper(successor)
+            po_list.append(a_node)
         if debug:
             print(f"The node:\n{a_node}\n\nThe po list:\n{po_list}\n")
 
@@ -264,19 +231,16 @@ def find_back_edges(cfg, entry, debug=False) -> list[str]:
     back_edges = []
     visited = set()
     visiting = set()
-    unvisited = set(cfg.keys())
 
     def depth_first_search_helper(a_node):
-        unvisited.discard(a_node)
         visiting.add(a_node)
-        if a_node in cfg:
-            for successor in cfg[a_node]:
-                if successor in visiting:
-                    if debug:
-                        print(f"Found back edge:\n{successor}\n")
-                    back_edges.append([a_node, successor])
-                elif successor in unvisited:
-                    depth_first_search_helper(successor)
+        for successor in cfg.get(a_node, []):
+            if successor in visiting:
+                if debug:
+                    print(f"Found back edge:\n{successor}\n")
+                back_edges.append([a_node, successor])
+            elif successor in visited:
+                depth_first_search_helper(successor)
             visiting.discard(a_node)
             visited.add(a_node)
         if debug:
@@ -284,10 +248,14 @@ def find_back_edges(cfg, entry, debug=False) -> list[str]:
 
     depth_first_search_helper(entry)
 
+    for n in cfg.keys():
+        if n not in visited:
+            depth_first_search_helper(n)
+
     return back_edges
 
 
-def is_reducable(cfg, entry, debug=False) -> bool:
+def is_reduceable(cfg, entry, debug=False) -> bool:
     """
     desc: determine whether a cfg is reducable
 
@@ -313,22 +281,26 @@ def is_reducable(cfg, entry, debug=False) -> bool:
 
 
 def find_dominators(cfg, entry_node, debug=False) -> dict:
-    dominators = {}
-    dominators[entry_node] = {entry_node}
+    rpo = reverse_postorder(cfg, entry_node)
 
-    for a_node in cfg:
-        if a_node != entry_node:
-            dominators[a_node] = set(cfg.keys())
+    predecessors = {n: [] for n in cfg}
+
+    for n, successors in cfg.items():
+        for sucessor in successors:
+            predecessors[sucessor].append(n)
+
+    dominators = {n: set(cfg.keys()) for n in cfg}
+    dominators[entry_node] = {entry_node}
 
     while True:
         changed = False
 
-        for a_node in reverse_postorder(cfg, entry_node):
+        for a_node in rpo:
             if a_node == entry_node:
-                pass
+                continue
             new_doms = set(cfg.keys())
 
-            for predecessor in get_path_length(cfg, entry_node)[-1]:
+            for predecessor in predecessors.get(a_node, []):
                 new_doms = new_doms.intersection(dominators[predecessor])
 
             new_doms.add(a_node)
@@ -343,40 +315,38 @@ def find_dominators(cfg, entry_node, debug=False) -> dict:
     return dominators
 
 
-def mycfg(debug_mode: bool, file_path: str = "") -> None:
+def mycfg(debug_mode: bool, reduce: bool) -> None:
     # load JSON from stdin
     prog = json.load(sys.stdin)
-    funcs = prog["functions"]
+    funcs = prog.get("functions", [])
+    if not funcs:
+        return
     # loading the just the first function, for now
-    func_instrs = funcs[0]["instrs"]
+    func_instrs = funcs[0].get("instrs", [])
+    if not func_instrs:
+        return
 
     # basic blocks generator
     basic_blocks_gen = form_blocks(func_instrs, debug_mode)
 
     # mapping blocks from label/ branch to succsessor
-    name_to_block = map_blocks(basic_blocks_gen, debug_mode)
+    name_to_block = map_blocks(list(basic_blocks_gen), debug_mode)
 
     # create cfg
     new_cfg = get_cfg(name_to_block, debug_mode)
+
+    if not new_cfg:
+        print("CFG is empty...")
 
     if debug_mode:
         print(f"The cfg:\n{new_cfg}\n\n")
 
     entry_node = list(new_cfg.keys())[0]
-    # get shortest path length
-    # get_path_length(new_cfg, new_cfg.keys()[0], debug_mode)
-    get_path_length(new_cfg, entry_node, debug_mode)
-
-    # reverse post order
-    reverse_postorder(new_cfg, entry_node, debug_mode)
-
-    # find back edges
-    find_back_edges(new_cfg, entry_node, debug_mode)
 
     # is reducable
-    reduceable = is_reducable(new_cfg, entry_node, True)
+    reduceable = is_reduceable(new_cfg, entry_node, debug_mode)
 
-    if True:
+    if reduce:
         print(f"Is reducable: {reduceable}\n")
 
     dot_string = gen_dot(new_cfg, debug_mode)
@@ -384,7 +354,6 @@ def mycfg(debug_mode: bool, file_path: str = "") -> None:
 
     if debug_mode:
         print(f"\nThe digraph:\n{dot_string}")
-    return
 
 
 if __name__ == "__main__":
@@ -401,10 +370,5 @@ if __name__ == "__main__":
         action="store_true",
         help="Check if a bril program is reduceable.",
     )
-    parser.add_argument(
-        "file",
-        nargs="?",
-        help="Input file to proccess. If not provided, reads from stdin",
-    )
     args = parser.parse_args()
-    mycfg(args.debug, args.file)
+    mycfg(args.debug, args.reduceable)

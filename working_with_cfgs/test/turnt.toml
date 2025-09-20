@@ -1,2 +1,0 @@
-command = "../run gcd.bril"
-output = "output.txt"

@@ -1,0 +1,3 @@
+command = "./cfg {filename}"
+return_code = 0
+output.txt = "result.txt"

@@ -3,7 +3,6 @@ import sys
 import argparse
 from collections import deque
 from collections.abc import Iterator
-from webbrowser import get
 
 # cfg generation program
 

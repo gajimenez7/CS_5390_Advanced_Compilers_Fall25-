@@ -1,0 +1,4 @@
+*.typ
+*.pdf
+pyrightconfig.json
+__pycache__

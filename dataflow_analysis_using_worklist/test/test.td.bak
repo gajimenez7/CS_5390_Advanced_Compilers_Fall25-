@@ -1,0 +1,35 @@
+# test.td
+
+## Available Expressions Analysis (Analysis: available)
+
+@test call.bril
+@expect call.out.available
+@run {bril2json <call.bril|python3 ../df.py available}
+
+@test non_linear_control_flow.bril
+@expect non_linear_control_flow.out.available
+@run {bril2json <non_linear_control_flow.bril|python3 ../df.py available}
+
+@test br.bril
+@expect br.out.available
+@run {bril2json <br.bril|python3 ../df.py available}
+
+# Add more tests for the 'available' analysis here...
+
+----------------------------------------------------------------------
+
+## Reaching Definitions Analysis (Analysis: reach)
+
+@test call.bril
+@expect call.out.reach
+@run {bril2json <call.bril|python3 ../df.py reach}
+
+@test non_linear_control_flow.bril
+@expect non_linear_control_flow.out.reach
+@run {bril2json <non_linear_control_flow.bril|python3 ../df.py reach}
+
+@test br.bril
+@expect br.out.reach
+@run {bril2json <br.bril|python3 ../df.py reach}
+
+# Add more tests for the 'reach' analysis here...

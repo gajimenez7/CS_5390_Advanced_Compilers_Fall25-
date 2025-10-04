@@ -1,0 +1,6 @@
+# turnt.toml
+# This provides a dummy command to satisfy turnt's assertion check.
+command = "echo {filename}"
+
+# Explicitly tell turnt to use your test description file
+test_files = ["test.td"]

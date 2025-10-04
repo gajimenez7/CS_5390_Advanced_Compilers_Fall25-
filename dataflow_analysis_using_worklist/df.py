@@ -1,3 +1,4 @@
+from math import exp
 import sys
 import json
 from collections import namedtuple
@@ -17,6 +18,18 @@ def union(sets):
     out = set()
     for s in sets:
         out.update(s)
+    return out
+
+
+def intersection(sets):
+    sets = list(sets)
+    if not sets:
+        return set()
+
+    out = sets[0].copy()
+
+    for s in sets[1:]:
+        out.intersection_update(s)
     return out
 
 
@@ -66,7 +79,17 @@ def fmt(val):
     """
     if isinstance(val, set):
         if val:
-            return ", ".join(v for v in sorted(val))
+
+            def format_element(v):
+                if isinstance(val, tuple):
+                    op = v[0]
+                    args = ", ".join(v[1:])
+                    return f"{op}({args})"
+                else:
+                    return str(v)
+
+            formatted_elements = [format_element(v) for v in val]
+            return ", ".join(v for v in sorted(formatted_elements))
         else:
             return "∅"
     elif isinstance(val, dict):
@@ -94,6 +117,34 @@ def run_df(bril, analysis):
 def gen(block):
     """Variables that are written in the block."""
     return {i["dest"] for i in block if "dest" in i}
+
+
+def get_expr(instr):
+    """Extracts an expression tuple form instruction"""
+    if "op" in instr and "args" in instr and instr["op"] not in ("const", "id"):
+        return tuple([instr["op"]] + instr["args"])
+    return None
+
+
+def gen_avail_express(block):
+    """Variables that are available at the end of the block"""
+    generated = set()
+
+    for instr in block:
+        if "dest" in instr:
+            defined_var = instr["dest"]
+            redefinition = {expr for expr in generated if defined_var in expr[1:]}
+            generated.difference_update(redefinition)
+
+        expr = get_expr(instr)
+        if expr:
+            generated.add(expr)
+    return generated
+
+
+def killed_avail_express(block):
+    """Variables that are killed before the end of the block"""
+    return set()
 
 
 def use(block):
@@ -180,10 +231,12 @@ REACH_DEFINITIONS = {
     ),
     # Available Expressions Analysis
     "available": Analysis(
-        False,
+        True,
         init=set(),
-        merge=union,
-        transfer=lambda block, in_: gen(block).union(in_ - kill(block)),
+        merge=intersection,
+        transfer=lambda block, in_: gen_avail_express(block).union(
+            in_ - killed_avail_express(block)
+        ),
     ),
     # Live variable analysis: the variables that are both defined at a
     # given point and might be read along some path in the future.
